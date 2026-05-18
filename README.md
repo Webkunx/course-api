@@ -6,7 +6,7 @@ A Go HTTP API that serves a ~10 GB Spanish-learning corpus on demand, designed s
 |---|---|
 | **Deployed URL** | https://qweqwekk.dpdns.org/ |
 | **Dataset** | `--seed=42 --scale=1.0` (full 10 GB · 2,500,000 exercises · 500 units) |
-| **GitHub** | _TBD_ |
+| **GitHub** | https://github.com/Webkunx/course-api/ |
 
 ---
 
@@ -41,8 +41,6 @@ Per-IP rate-limiting is the standard scraping defense. It fails here because:
 - **Residential proxies cost $0.16–4/GB in 2026.** A determined attacker buys 100k rotating IPs for the price of a Steam game.
 - **Parallel-account-collapse means IP rotation gives the attacker nothing extra.** Two IPs running two fresh accounts retrieve the same sequence. Bypassing the IP limit has zero correlation with unique-exercise gain.
 - **False positives on shared/NAT IPs.** Coffee shops, university CGNAT, mobile carriers — legitimate users sharing an IP look like a bot farm.
-
-A very loose 100/min per-IP limit on `/register` is kept strictly as DoS hygiene (prevents `user_progress` table bloat under flood). It is **not** labeled as anti-scraping in the threat model.
 
 ---
 
@@ -198,10 +196,7 @@ A user with `status = 'bot'` continues to receive valid exercises (so `content_h
 ### 7. Idempotent `/next` and `/complete`
 Both endpoints are safe to retry on flaky networks. `/next` returns the active exercise on retry; `/complete` returns 200 on a second call without double-counting the daily quota. This makes the legitimate client trivially robust *and* concentrates all bot-detection logic in exactly one place (the first successful `/complete`).
 
-### 8. Per-`/register` rate limit (operational hygiene, not anti-scraping)
-A loose 100/min per-IP limit on `/register` prevents `user_progress` table bloat under flood. It is **not** an anti-scraping defense — parallel-account-collapse makes mass account creation useless to the attacker regardless. Listed here so the architecture conversation does not need to relitigate it.
-
-### 9. Response compression
+### 8. Response compression
 Fiber's `compress` middleware negotiates gzip/deflate/brotli. Cuts the ~4 KB JSON payloads by ~4× — drops both bandwidth cost and P95 latency under load. Not a defense; part of the legitimate-client UX.
 
 ---
