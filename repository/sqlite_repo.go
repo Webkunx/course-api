@@ -130,29 +130,33 @@ func (t *mysqlTxRepo) RecordEndTime(userID string, slot, endMs int64) error {
 
 // GetDwellStats fetches single-lesson dwell and rolling-average dwell in one round trip.
 func (t *mysqlTxRepo) GetDwellStats(userID string, slot int64, window int) (entities.DwellStats, error) {
-	var singleMs sql.NullInt64
-	var avgMs sql.NullFloat64
-	err := t.tx.QueryRow(`
-		SELECT
-			(SELECT end_time - start_time
-			 FROM user_completion
-			 WHERE user_id=? AND slot=?) AS single_ms,
-			(SELECT AVG(d)
-			 FROM (SELECT end_time - start_time AS d
-			       FROM user_completion
-			       WHERE user_id=? AND end_time IS NOT NULL
-			       ORDER BY start_time DESC
-			       LIMIT ?) AS recent) AS avg_ms`,
-		userID, slot, userID, window,
-	).Scan(&singleMs, &avgMs)
-	if err != nil {
-		return entities.DwellStats{}, err
-	}
-	return entities.DwellStats{
-		SingleMs: singleMs.Int64,
-		AvgMs:    avgMs.Float64,
-		HasAvg:   avgMs.Valid,
-	}, nil
+ var singleMs sql.NullInt64
+ var avgMs sql.NullFloat64
+ var completedCount int64
+ err := t.tx.QueryRow(`
+  SELECT
+   (SELECT end_time - start_time
+    FROM user_completion
+    WHERE user_id=? AND slot=?) AS single_ms,
+   (SELECT AVG(d)
+    FROM (SELECT end_time - start_time AS d
+          FROM user_completion
+          WHERE user_id=? AND end_time IS NOT NULL
+          ORDER BY start_time DESC
+          LIMIT ?) AS recent) AS avg_ms,
+   (SELECT COUNT(*)
+    FROM user_completion
+    WHERE user_id=? AND end_time IS NOT NULL) AS completed_count`,
+  userID, slot, userID, window, userID,
+ ).Scan(&singleMs, &avgMs, &completedCount)
+ if err != nil {
+  return entities.DwellStats{}, err
+ }
+ return entities.DwellStats{
+  SingleMs: singleMs.Int64,
+  AvgMs:    avgMs.Float64,
+  HasAvg:   avgMs.Valid && completedCount >= int64(window),
+ }, nil
 }
 
 func (t *mysqlTxRepo) IncrementDaily(userID, day string) (int64, error) {
